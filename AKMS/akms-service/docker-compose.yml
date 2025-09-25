@@ -1,0 +1,28 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: sprouts-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: sprouts-dev
+      POSTGRES_PASSWORD: Sprouts@2025
+      POSTGRES_DB: sprouts-ai
+    ports:
+      - "5434:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    container_name: redis
+    image: redis:latest
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+volumes:
+  postgres_data:
+  redis_data:
