@@ -14,7 +14,7 @@ import java.util.UUID;
 @NoArgsConstructor
 @AllArgsConstructor
 public class ApiKey {
-    private UUID id;
+    private UUID uuid;
     private String customerId;
     private String name;
     private List<String> permissions;

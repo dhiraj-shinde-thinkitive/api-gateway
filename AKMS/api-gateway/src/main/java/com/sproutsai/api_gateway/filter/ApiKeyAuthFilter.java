@@ -50,6 +50,12 @@ public class ApiKeyAuthFilter implements GlobalFilter, Ordered {
             return chain.filter(exchange);
         }
 
+        // Skip authentication for /api/keys/generate
+        if (path.equals("/api/keys/generate")) {
+            log.debug("Skipping API key authentication for path: {}", path);
+            return chain.filter(exchange);
+        }
+
         long startTime = System.currentTimeMillis();
         String apiKey = extractApiKey(exchange);
 

@@ -1,6 +1,6 @@
 package com.sproutsai.api_gateway.service;
 
-import com.sproutsai.api_gateway.client.ApiKeyManagementClient;
+import com.sproutsai.api_gateway.client.ApiKeyClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.cache.annotation.Cacheable;
@@ -20,51 +20,18 @@ import java.util.Set;
 public class ApiKeyService {
 
     private static final Logger log = LoggerFactory.getLogger(ApiKeyService.class);
-    
-    private final ApiKeyManagementClient akmsClient;
 
-    public ApiKeyService(ApiKeyManagementClient akmsClient) {
-        this.akmsClient = akmsClient;
+    private final ApiKeyClient apiKeyClient;
+
+    public ApiKeyService(ApiKeyClient apiKeyClient) {
+        this.apiKeyClient = apiKeyClient;
     }
-
-    /**
-     * Validate API key via AKMS and return metadata if valid
-     */
-//    @Cacheable(value = "apiKeys", key = "#apiKey")
-//    public Mono<Optional<ApiKeyMetadata>> validateApiKey(String apiKey) {
-//        log.debug("Validating API key: {}", apiKey.substring(0, Math.min(8, apiKey.length())) + "...");
-//
-//        return akmsClient.validateApiKey(apiKey)
-//                .map(response -> {
-//                    if (response == null || !response.valid()) {
-//                        log.warn("API key validation failed or key not found");
-//                        return Optional.<ApiKeyMetadata>empty();
-//                    }
-//
-//                    // Convert AKMS response to metadata
-//                    Integer rateLimit = response.rateLimit() != null ? response.rateLimit() : 100;
-//
-//                    ApiKeyMetadata metadata = new ApiKeyMetadata(
-//                            response.customerId(),
-//                            response.permissions() != null ? new HashSet<>(response.permissions()) : new HashSet<>(),
-//                            rateLimit,
-////                            response.expiryDate(),
-//                            true
-//                    );
-//
-//                    log.debug("API key validation successful for customer: {}", response.customerId());
-//                    return Optional.of(metadata);
-//                });
-////                .onErrorReturn(throwable -> {
-////                    return Optional.<ApiKeyMetadata>empty();
-////                });
-//    }
 
     @Cacheable(value = "apiKeys", key = "#apiKey")
     public Mono<ApiKeyMetadata> validateApiKey(String apiKey) {
         log.debug("Validating API key: {}", apiKey.substring(0, Math.min(8, apiKey.length())) + "...");
 
-        return akmsClient.validateApiKey(apiKey)
+        return apiKeyClient.validateApiKey(apiKey)
                 .flatMap(response -> {
                     if (response == null || !response.valid()) {
                         log.warn("API key validation failed or key not found");

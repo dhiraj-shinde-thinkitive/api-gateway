@@ -16,7 +16,7 @@ import java.util.UUID;
 @NoArgsConstructor
 @AllArgsConstructor
 public class Customer {
-    private UUID id;
+    private UUID uuid;
 
     @NotBlank(message = "Name is required")
     @Size(max = 100, message = "Name must not exceed 100 characters")

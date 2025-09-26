@@ -34,8 +34,7 @@ public class ApiKeyServiceImpl implements ApiKeyService {
     public Map<String, Object> generateApiKey(GenerateKeyRequest request) {
         log.info("Generating API key for customer: {}", request.getCustomerId());
 
-        CustomerEntity customer = customerRepository.findById(UUID.fromString(request.getCustomerId()))
-                .orElseThrow(() -> new RuntimeException("Customer not found with ID: " + request.getCustomerId()));
+        CustomerEntity customer = customerRepository.findByUuid(UUID.fromString(request.getCustomerId())).orElseThrow(() -> new RuntimeException("Customer not found with ID: " + request.getCustomerId()));
 
         // Generate raw key and hash it
         String rawKey = "ak_" + UUID.randomUUID().toString().replace("-", "");
@@ -97,8 +96,7 @@ public class ApiKeyServiceImpl implements ApiKeyService {
     public ApiKey revokeApiKey(UUID keyId) {
         log.info("Revoking API key with ID: {}", keyId);
 
-        ApiKeyEntity apiKeyEntity = apiKeyRepository.findById(keyId)
-                .orElseThrow(() -> new RuntimeException("API key not found with ID: " + keyId));
+        ApiKeyEntity apiKeyEntity = apiKeyRepository.findByUuid(keyId).orElseThrow(() -> new RuntimeException("API key not found with ID: " + keyId));
 
         apiKeyEntity.setStatus("revoked");
         apiKeyEntity.setUpdatedAt(LocalDateTime.now());
@@ -113,8 +111,7 @@ public class ApiKeyServiceImpl implements ApiKeyService {
     public ApiKey activateApiKey(UUID keyId) {
         log.info("Activating API key with ID: {}", keyId);
 
-        ApiKeyEntity apiKeyEntity = apiKeyRepository.findById(keyId)
-                .orElseThrow(() -> new RuntimeException("API key not found with ID: " + keyId));
+        ApiKeyEntity apiKeyEntity = apiKeyRepository.findByUuid(keyId).orElseThrow(() -> new RuntimeException("API key not found with ID: " + keyId));
 
         // Check if key is not expired
         if (apiKeyEntity.getExpiryDate() != null && apiKeyEntity.getExpiryDate().isBefore(LocalDateTime.now())) {
@@ -134,7 +131,7 @@ public class ApiKeyServiceImpl implements ApiKeyService {
     @Transactional(readOnly = true)
     public Optional<ApiKey> getApiKeyById(UUID id) {
         log.info("Fetching API key by ID: {}", id);
-        return apiKeyRepository.findById(id)
+        return apiKeyRepository.findByUuid(id)
                 .map(this::mapToDto);
     }
 
@@ -161,8 +158,8 @@ public class ApiKeyServiceImpl implements ApiKeyService {
     public List<ApiKey> getApiKeysByCustomerId(UUID customerId) {
         log.info("Fetching API keys for customer: {}", customerId);
 
-        CustomerEntity customer = customerRepository.findById(customerId)
-                .orElseThrow(() -> new RuntimeException("Customer not found with ID: " + customerId));
+        CustomerEntity customer = customerRepository.findByUuid(customerId)
+                .orElseThrow(() -> new RuntimeException("Customer not found with UUID: " + customerId));
 
         return apiKeyRepository.findAll().stream()
                 .filter(key -> key.getCustomer().getId().equals(customerId))
@@ -175,7 +172,7 @@ public class ApiKeyServiceImpl implements ApiKeyService {
     public Page<ApiKey> getApiKeysByCustomerId(UUID customerId, Pageable pageable) {
         log.info("Fetching API keys for customer: {} with pagination", customerId);
 
-        if (!customerRepository.existsById(customerId)) {
+        if (!customerRepository.existsByUuid(customerId)) {
             throw new RuntimeException("Customer not found with ID: " + customerId);
         }
 
@@ -197,8 +194,7 @@ public class ApiKeyServiceImpl implements ApiKeyService {
     public ApiKey updateApiKey(UUID id, ApiKey apiKey) {
         log.info("Updating API key with ID: {}", id);
 
-        ApiKeyEntity existingEntity = apiKeyRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("API key not found with ID: " + id));
+        ApiKeyEntity existingEntity = apiKeyRepository.findByUuid(id).orElseThrow(() -> new RuntimeException("API key not found with ID: " + id));
 
         // Update allowed fields (not the hash or customer)
         existingEntity.setName(apiKey.getName());
@@ -217,11 +213,11 @@ public class ApiKeyServiceImpl implements ApiKeyService {
     public void deleteApiKey(UUID id) {
         log.info("Deleting API key with ID: {}", id);
 
-        if (!apiKeyRepository.existsById(id)) {
+        if (!apiKeyRepository.existsByUuid(id)) {
             throw new RuntimeException("API key not found with ID: " + id);
         }
 
-        apiKeyRepository.deleteById(id);
+        apiKeyRepository.deleteByUuid(id);
         log.info("API key deleted successfully with ID: {}", id);
     }
 
@@ -236,7 +232,7 @@ public class ApiKeyServiceImpl implements ApiKeyService {
     @Override
     @Transactional(readOnly = true)
     public boolean isApiKeyExpired(UUID keyId) {
-        return apiKeyRepository.findById(keyId)
+        return apiKeyRepository.findByUuid(keyId)
                 .map(key -> key.getExpiryDate() != null && key.getExpiryDate().isBefore(LocalDateTime.now()))
                 .orElse(true);
     }
@@ -272,7 +268,7 @@ public class ApiKeyServiceImpl implements ApiKeyService {
 
     private ApiKey mapToDto(ApiKeyEntity entity) {
         return ApiKey.builder()
-                .id(entity.getId())
+                .uuid(entity.getUuid())
                 .customerId(entity.getCustomer().getId().toString())
                 .name(entity.getName())
                 .permissions(Arrays.asList(entity.getPermissions().split(",")))

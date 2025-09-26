@@ -58,12 +58,6 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-data-redis</artifactId>
         </dependency>
-
-<!--todo:remove this-->
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-security</artifactId>
-        </dependency>
         <!-- Micrometer for metrics/logging -->
         <dependency>
             <groupId>io.micrometer</groupId>

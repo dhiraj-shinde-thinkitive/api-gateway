@@ -1,6 +1,11 @@
 spring:
   application:
     name: api-gateway
+    # Service Base URLs
+    ipls:
+      base-url: https://wa.sprouts.ai:3000
+    mdqs:
+      base-url: https://mdqs.sprouts.ai
   
   
   # Redis Configuration
@@ -33,6 +38,33 @@ spring:
             - Path=/api/**
           metadata:
             auth-type: api-key  # Custom metadata for authentication type
+
+        # IPLS Service Routes
+        - id: IPLS-SERVICE-1
+          uri: ${spring.application.ipls.base-url}
+          predicates:
+            - Path=/v1/capture_ip
+
+        - id: IPLS-SERVICE-2
+          uri: ${spring.application.ipls.base-url}
+          predicates:
+            - Path=/v1/webhooks/**
+
+        - id: IPLS-SERVICE-3
+          uri: ${spring.application.ipls.base-url}
+          predicates:
+            - Path=/v1/customers/update_allowed_domains
+
+        # MDQS Service Routes
+        - id: MDQS-SERVICE-1
+          uri: ${spring.application.mdqs.base-url}
+          predicates:
+            - Path=/v1/accounts/**
+
+        - id: MDQS-SERVICE-2
+          uri: ${spring.application.mdqs.base-url}
+          predicates:
+            - Path=/v1/contacts/**
 
       # Global CORS configuration
       globalcors:

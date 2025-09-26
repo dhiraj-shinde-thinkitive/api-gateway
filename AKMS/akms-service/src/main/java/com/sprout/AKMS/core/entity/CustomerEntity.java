@@ -16,8 +16,13 @@ import java.util.UUID;
 @AllArgsConstructor
 
 public class CustomerEntity {
+
     @Id
-    private UUID id;
+    @GeneratedValue(strategy = GenerationType.IDENTITY) // auto-increment
+    private Long id;
+
+    @Column(nullable = false, unique = true)
+    private UUID uuid;
 
     @Column(nullable = false, length = 100)
     private String name;
@@ -33,7 +38,7 @@ public class CustomerEntity {
 
     @PrePersist
     public void prePersist() {
-        this.id = UUID.randomUUID();
+        this.uuid = UUID.randomUUID();
         this.createdAt = LocalDateTime.now();
         this.updatedAt = LocalDateTime.now();
     }

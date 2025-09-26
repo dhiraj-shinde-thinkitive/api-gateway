@@ -44,15 +44,13 @@ public class CustomerServiceImpl implements CustomerService {
     }
 
     @Override
-    @Transactional(readOnly = true)
     public Optional<Customer> getCustomerById(UUID id) {
         log.info("Fetching customer by ID: {}", id);
-        return customerRepository.findById(id)
+        return customerRepository.findByUuid(id)
                 .map(this::mapToDto);
     }
 
     @Override
-    @Transactional(readOnly = true)
     public Optional<Customer> getCustomerByEmail(String email) {
         log.info("Fetching customer by email: {}", email);
         return customerRepository.findByEmail(email)
@@ -60,7 +58,6 @@ public class CustomerServiceImpl implements CustomerService {
     }
 
     @Override
-    @Transactional(readOnly = true)
     public List<Customer> getAllCustomers() {
         log.info("Fetching all customers");
         return customerRepository.findAll().stream()
@@ -69,7 +66,6 @@ public class CustomerServiceImpl implements CustomerService {
     }
 
     @Override
-    @Transactional(readOnly = true)
     public Page<Customer> getAllCustomers(Pageable pageable) {
         log.info("Fetching customers with pagination: page={}, size={}", 
                 pageable.getPageNumber(), pageable.getPageSize());
@@ -81,7 +77,7 @@ public class CustomerServiceImpl implements CustomerService {
     public Customer updateCustomer(UUID id, Customer customer) {
         log.info("Updating customer with ID: {}", id);
         
-        CustomerEntity existingEntity = customerRepository.findById(id)
+        CustomerEntity existingEntity = customerRepository.findByUuid(id)
                 .orElseThrow(() -> new RuntimeException("Customer not found with ID: " + id));
 
         // Check if email is being changed and if new email already exists
@@ -104,23 +100,22 @@ public class CustomerServiceImpl implements CustomerService {
     public void deleteCustomer(UUID id) {
         log.info("Deleting customer with ID: {}", id);
         
-        if (!customerRepository.existsById(id)) {
+        if (!customerRepository.existsByUuid(id)) {
             throw new RuntimeException("Customer not found with ID: " + id);
         }
 
-        customerRepository.deleteById(id);
+        customerRepository.deleteByUuid(id);
         log.info("Customer deleted successfully with ID: {}", id);
     }
 
     @Override
-    @Transactional(readOnly = true)
     public boolean existsByEmail(String email) {
         return customerRepository.findByEmail(email).isPresent();
     }
 
     private Customer mapToDto(CustomerEntity entity) {
         return Customer.builder()
-                .id(entity.getId())
+                .uuid(entity.getUuid())
                 .name(entity.getName())
                 .email(entity.getEmail())
                 .createdAt(entity.getCreatedAt())

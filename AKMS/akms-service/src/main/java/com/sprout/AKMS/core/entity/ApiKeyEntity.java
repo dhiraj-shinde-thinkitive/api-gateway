@@ -15,8 +15,13 @@ import java.util.UUID;
 @AllArgsConstructor
 public class ApiKeyEntity {
 
+
     @Id
-    private UUID id;
+    @GeneratedValue(strategy = GenerationType.IDENTITY) // auto-increment
+    private Long id;
+
+    @Column(nullable = false, unique = true)
+    private UUID uuid;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "customer_id", nullable = false)
@@ -48,7 +53,7 @@ public class ApiKeyEntity {
 
     @PrePersist
     public void prePersist() {
-        this.id = UUID.randomUUID();
+        this.uuid = UUID.randomUUID();
         this.createdAt = LocalDateTime.now();
         this.updatedAt = LocalDateTime.now();
     }
