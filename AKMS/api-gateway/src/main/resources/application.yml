@@ -111,7 +111,7 @@ app:
   
   # Cache Configuration
   cache:
-    api-key-ttl: 300 # 5 minutes
+    api-key-ttl: 300 # api-key time to live --> 5 minutes
 #
 #  # Rate Limiting Configuration
 #  rate-limit:

@@ -53,26 +53,30 @@ public class RateLimitService {
      * Check if request is within rate limit
      */
     public RateLimitResult checkRateLimit(String customerId, Long apiKeyId, Integer limitPerMinute) {
+        log.debug("RATE_LIMIT_CHECK - Starting rate limit check: customer={}, apiKey={}, limit={}", customerId, apiKeyId, limitPerMinute);
 
         long currentTime = LocalDateTime.now().toEpochSecond(ZoneOffset.UTC);
 
         try {
             // Check minute limit
+            log.debug("RATE_LIMIT_MINUTE - Checking minute window limit: customer={}, limit={}", customerId, limitPerMinute);
             RateLimitCheck minuteCheck = checkLimit(customerId, apiKeyId, "minute", limitPerMinute, 60, currentTime);
+
             if (!minuteCheck.allowed()) {
-                log.debug("Rate limit exceeded for minute window. Customer: {}, ApiKey: {}", customerId, apiKeyId);
+                log.warn("RATE_LIMIT_EXCEEDED - Minute window limit exceeded: customer={}, apiKey={}, remaining={}", customerId, apiKeyId, minuteCheck.remaining());
                 return new RateLimitResult(false, RateLimitWindow.MINUTE, minuteCheck.remaining(), calculateResetTime(60));
             }
 
-
             // All checks passed
-            long minRemaining =  minuteCheck.remaining();
+            long minRemaining = minuteCheck.remaining();
+            log.info("RATE_LIMIT_ALLOWED - Request allowed: customer={}, remaining={}", customerId, minRemaining);
 
             return new RateLimitResult(true, null, minRemaining, null);
 
         } catch (Exception e) {
-            log.error("Error checking rate limit for customer: {}, apiKey: {}", customerId, apiKeyId, e);
+            log.error("RATE_LIMIT_ERROR - Error checking rate limit for customer: {}, apiKey: {}", customerId, apiKeyId, e);
             // In case of Redis failure, allow the request (fail open)
+            log.warn("RATE_LIMIT_FAILOPEN - Allowing request due to Redis error");
             return new RateLimitResult(true, null, -1, null);
         }
     }
@@ -172,7 +176,7 @@ public class RateLimitService {
     }
 
     // DTOs and Records
-
+    //todo: need to change resetTime to Instant
     public record RateLimitResult(
         boolean allowed,
         RateLimitWindow limitedBy,

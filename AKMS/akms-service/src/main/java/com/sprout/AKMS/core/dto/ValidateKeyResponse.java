@@ -10,6 +10,7 @@ import java.util.List;
 public class ValidateKeyResponse {
     private boolean valid;
     private String customerId;
+    private String apiKeyId;
     private List<String> permissions;
     private Integer rateLimit;
     private LocalDateTime expiryDate;

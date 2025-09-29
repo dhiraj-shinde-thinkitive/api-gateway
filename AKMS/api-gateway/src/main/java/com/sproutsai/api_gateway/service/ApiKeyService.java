@@ -27,14 +27,16 @@ public class ApiKeyService {
         this.apiKeyClient = apiKeyClient;
     }
 
-    @Cacheable(value = "apiKeys", key = "#apiKey")
-    public Mono<ApiKeyMetadata> validateApiKey(String apiKey) {
-        log.debug("Validating API key: {}", apiKey.substring(0, Math.min(8, apiKey.length())) + "...");
+//    @Cacheable(value = "apiKeys", key = "#apiKey")
+@Cacheable(value = "apiKeys", key = "#apiKey", condition = "true", unless = "#result == null")
+public Mono<ApiKeyMetadata> validateApiKey(String apiKey) {
+        String maskedKey = apiKey.substring(0, Math.min(8, apiKey.length())) + "...";
+        log.info("CACHE_LOOKUP - Attempting API key validation: {}", maskedKey);
 
         return apiKeyClient.validateApiKey(apiKey)
                 .flatMap(response -> {
                     if (response == null || !response.valid()) {
-                        log.warn("API key validation failed or key not found");
+                        log.warn("VALIDATION_FAILED - API key validation failed or key not found: {}", maskedKey);
                         return Mono.empty();
                     }
 
@@ -42,14 +44,18 @@ public class ApiKeyService {
 
                     ApiKeyMetadata metadata = new ApiKeyMetadata(
                             response.customerId(),
+                            response.apiKeyId(),
                             response.permissions() != null ? new HashSet<>(response.permissions()) : new HashSet<>(),
                             rateLimit,
                             true
                     );
 
-                    log.debug("API key validation successful for customer: {}", response.customerId());
+                    log.info("VALIDATION_SUCCESS - API key validated and cached: key={}, customer={}, rateLimit={}",
+                            maskedKey, response.customerId(), rateLimit);
                     return Mono.just(metadata);
-                });
+                })
+                .doOnNext(metadata -> log.debug("CACHE_STORE - Caching API key metadata for: {}", maskedKey))
+                .doOnError(error -> log.error("VALIDATION_ERROR - API key validation error for {}: {}", maskedKey, error.getMessage()));
     }
 
 
@@ -58,7 +64,8 @@ public class ApiKeyService {
      */
     @CacheEvict(value = "apiKeys", key = "#apiKey")
     public void evictApiKeyFromCache(String apiKey) {
-        log.debug("Evicting API key from cache: {}...", apiKey.substring(0, Math.min(8, apiKey.length())));
+        String maskedKey = apiKey.substring(0, Math.min(8, apiKey.length())) + "...";
+        log.info("CACHE_EVICT - Evicting API key from cache: {}", maskedKey);
     }
 
     /**
@@ -66,13 +73,14 @@ public class ApiKeyService {
      */
     @CacheEvict(value = "apiKeys", allEntries = true)
     public void clearAllCache() {
-        log.info("Clearing all API key cache");
+        log.info("CACHE_CLEAR_ALL - Clearing all API key cache entries");
     }
 
     // DTOs and Records
 
     public record ApiKeyMetadata(
             String customerId,
+            String apiKeyId,
             Set<String> permissions,
             Integer rateLimit,
 //            LocalDateTime expiryDate,

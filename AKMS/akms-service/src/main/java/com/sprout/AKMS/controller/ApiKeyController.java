@@ -50,13 +50,8 @@ public class ApiKeyController {
     @ApiResponses(value = {@ApiResponse(responseCode = "201", description = "API key generated successfully"), @ApiResponse(responseCode = "400", description = "Invalid input data"), @ApiResponse(responseCode = "404", description = "Customer not found")})
     public ResponseEntity<Map<String, Object>> generateApiKey(@Valid @RequestBody GenerateKeyRequest request) {
         log.info("Request to generate API key for customer: {}", request.getCustomerId());
-        try {
-            Map<String, Object> response = apiKeyService.generateApiKey(request);
-            return new ResponseEntity<>(response, HttpStatus.CREATED);
-        } catch (RuntimeException e) {
-            log.error("Error generating API key: {}", e.getMessage());
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
-        }
+        Map<String, Object> response = apiKeyService.generateApiKey(request);
+        return new ResponseEntity<>(response, HttpStatus.CREATED);
     }
 
     @PostMapping("/validate")
@@ -73,13 +68,8 @@ public class ApiKeyController {
     @ApiResponses(value = {@ApiResponse(responseCode = "200", description = "API key revoked successfully"), @ApiResponse(responseCode = "404", description = "API key not found")})
     public ResponseEntity<ApiKey> revokeApiKey(@Parameter(description = "API key ID") @PathVariable UUID id) {
         log.info("Request to revoke API key: {}", id);
-        try {
-            ApiKey revokedKey = apiKeyService.revokeApiKey(id);
-            return ResponseEntity.ok(revokedKey);
-        } catch (RuntimeException e) {
-            log.error("Error revoking API key: {}", e.getMessage());
-            return ResponseEntity.notFound().build();
-        }
+        ApiKey revokedKey = apiKeyService.revokeApiKey(id);
+        return ResponseEntity.ok(revokedKey);
     }
 
     @PostMapping("/{id}/activate")
@@ -87,16 +77,8 @@ public class ApiKeyController {
     @ApiResponses(value = {@ApiResponse(responseCode = "200", description = "API key activated successfully"), @ApiResponse(responseCode = "404", description = "API key not found"), @ApiResponse(responseCode = "400", description = "Cannot activate expired key")})
     public ResponseEntity<ApiKey> activateApiKey(@Parameter(description = "API key ID") @PathVariable UUID id) {
         log.info("Request to activate API key: {}", id);
-        try {
-            ApiKey activatedKey = apiKeyService.activateApiKey(id);
-            return ResponseEntity.ok(activatedKey);
-        } catch (RuntimeException e) {
-            log.error("Error activating API key: {}", e.getMessage());
-            if (e.getMessage().contains("not found")) {
-                return ResponseEntity.notFound().build();
-            }
-            return ResponseEntity.badRequest().build();
-        }
+        ApiKey activatedKey = apiKeyService.activateApiKey(id);
+        return ResponseEntity.ok(activatedKey);
     }
 
     @GetMapping("/{id}")

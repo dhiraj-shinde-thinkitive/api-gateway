@@ -25,7 +25,11 @@ public class HttpApiKeyClient implements ApiKeyClient {
 
     @Override
     public Mono<ApiKeyValidationResponse> validateApiKey(String apiKey) {
-        log.debug("Validating API key with AKMS: {}...", apiKey.substring(0, Math.min(8, apiKey.length())));
+        log.info("akms service call for merry brown");
+        String maskedKey = apiKey.substring(0, Math.min(8, apiKey.length())) + "...";
+        log.info("AKMS_REQUEST_START - Validating API key with AKMS: {}", maskedKey);
+
+        long startTime = System.currentTimeMillis();
 
         return webClient.post()
             .uri("/api/keys/validate")
@@ -33,10 +37,9 @@ public class HttpApiKeyClient implements ApiKeyClient {
             .retrieve()
             .bodyToMono(ApiKeyValidationResponse.class)
             .timeout(Duration.ofMillis(5000))
-            .doOnSuccess(response -> log.debug("API key validation successful for customer: {}",
-                response != null ? response.customerId() : "unknown"))
+            .doOnSuccess(response -> log.debug("API key validation successful for customer: {}", response != null ? response.customerId() : "unknown"))
             .doOnError(error -> log.error("API key validation failed", error))
-            .onErrorReturn(new ApiKeyValidationResponse(false, null, null, null, null, null));
+            .onErrorReturn(new ApiKeyValidationResponse(false, null, null, null, null, null, null));
     }
 
     @Override

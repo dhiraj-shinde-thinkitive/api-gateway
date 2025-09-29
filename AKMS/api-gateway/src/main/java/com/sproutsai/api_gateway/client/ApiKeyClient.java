@@ -36,6 +36,7 @@ public interface ApiKeyClient {
     record ApiKeyValidationResponse(
             boolean valid,
             String customerId,
+            String apiKeyId,
             List<String> permissions,
             Integer rateLimit,
             LocalDateTime expiryDate,

@@ -6,9 +6,11 @@ import com.sprout.AKMS.core.dto.ValidateKeyRequest;
 import com.sprout.AKMS.core.dto.ValidateKeyResponse;
 import com.sprout.AKMS.core.entity.ApiKeyEntity;
 import com.sprout.AKMS.core.entity.CustomerEntity;
+import com.sprout.AKMS.core.exception.AKMSException;
 import com.sprout.AKMS.repository.ApiKeyRepository;
 import com.sprout.AKMS.repository.CustomerRepository;
 import com.sprout.AKMS.service.ApiKeyService;
+import com.sprout.AKMS.service.CacheInvalidationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -29,102 +31,163 @@ public class ApiKeyServiceImpl implements ApiKeyService {
 
     private final ApiKeyRepository apiKeyRepository;
     private final CustomerRepository customerRepository;
+    private final CacheInvalidationService cacheInvalidationService;
 
     @Override
     public Map<String, Object> generateApiKey(GenerateKeyRequest request) {
-        log.info("Generating API key for customer: {}", request.getCustomerId());
+        log.info("KEY_GENERATION_START - Generating API key: customer={}, name={}, rateLimit={}", request.getCustomerId(), request.getName(), request.getRateLimit());
 
-        CustomerEntity customer = customerRepository.findByUuid(UUID.fromString(request.getCustomerId())).orElseThrow(() -> new RuntimeException("Customer not found with ID: " + request.getCustomerId()));
+        long startTime = System.currentTimeMillis();
 
-        // Generate raw key and hash it
-        String rawKey = "ak_" + UUID.randomUUID().toString().replace("-", "");
-        String hashedKey = BCrypt.hashpw(rawKey, BCrypt.gensalt());
+        // Validate customer exists
+        try {
+            CustomerEntity customer = customerRepository.findByUuid(UUID.fromString(request.getCustomerId()))
+                    .orElseThrow(() -> new AKMSException.CustomerNotFoundException(request.getCustomerId()));
 
-        ApiKeyEntity apiKeyEntity = ApiKeyEntity.builder()
-                .customer(customer)
-                .apiKeyHash(hashedKey)
-                .name(request.getName())
-                .permissions(String.join(",", request.getPermissions()))
-                .rateLimit(request.getRateLimit())
-                .expiryDate(request.getExpiryDate())
-                .status("active")
-                .build();
+            // Generate raw key and hash it
+            String rawKey = "ak_" + UUID.randomUUID().toString().replace("-", "");
+            log.debug("RAW_KEY_GENERATED - Raw API key generated: length={}", rawKey.length());
 
-        ApiKeyEntity savedEntity = apiKeyRepository.save(apiKeyEntity);
-        log.info("API key generated successfully with ID: {}", savedEntity.getId());
+            String hashedKey = BCrypt.hashpw(rawKey, BCrypt.gensalt());
 
-        // Return response with raw key (shown only once)
-        Map<String, Object> response = new HashMap<>();
-        response.put("id", savedEntity.getId().toString());
-        response.put("apiKey", rawKey); // Raw key shown only once
-        response.put("customerId", customer.getId().toString());
-        response.put("name", savedEntity.getName());
-        response.put("status", savedEntity.getStatus());
-        response.put("rateLimit", savedEntity.getRateLimit());
-        response.put("expiryDate", savedEntity.getExpiryDate());
-        response.put("createdAt", savedEntity.getCreatedAt());
+            ApiKeyEntity apiKeyEntity = ApiKeyEntity.builder()
+                    .customer(customer)
+                    .apiKeyHash(hashedKey)
+                    .name(request.getName())
+                    .permissions(String.join(",", request.getPermissions()))
+                    .rateLimit(request.getRateLimit())
+                    .expiryDate(request.getExpiryDate())
+                    .status("active")
+                    .build();
 
-        return response;
+            ApiKeyEntity savedEntity = apiKeyRepository.save(apiKeyEntity);
+
+            long totalTime = System.currentTimeMillis() - startTime;
+            log.info("KEY_GENERATION_SUCCESS - API key generated successfully: keyId={}, customer={}, totalTime={}ms",
+                    savedEntity.getId(), customer.getId(), totalTime);
+
+            // Return response with raw key (shown only once)
+            Map<String, Object> response = new HashMap<>();
+            response.put("id", savedEntity.getId().toString());
+            response.put("apiKey", rawKey); // Raw key shown only once
+            response.put("customerId", customer.getId().toString());
+            response.put("name", savedEntity.getName());
+            response.put("status", savedEntity.getStatus());
+            response.put("rateLimit", savedEntity.getRateLimit());
+            response.put("expiryDate", savedEntity.getExpiryDate());
+            response.put("createdAt", savedEntity.getCreatedAt());
+
+            return response;
+
+        } catch (Exception e) {
+            log.error("KEY_GENERATION_ERROR - Failed to generate API key: customer={}, error={}",
+                    request.getCustomerId(), e.getMessage(), e);
+            if (e instanceof AKMSException) {
+                throw e;
+            }
+            throw new AKMSException.ApiKeyGenerationException("Failed to generate API key", e);
+        }
     }
 
     @Override
     public ValidateKeyResponse validateApiKey(ValidateKeyRequest request) {
-        log.info("Validating API key");
+        try {
+            String maskedKey = request.getApiKey().substring(0, Math.min(8, request.getApiKey().length())) + "...";
+            log.info("VALIDATION_START - Starting API key validation: {}", maskedKey);
 
-        return apiKeyRepository.findAll().stream()
-                .filter(key -> "active".equals(key.getStatus()))
-                .filter(key -> key.getExpiryDate() == null || key.getExpiryDate().isAfter(LocalDateTime.now()))
-                .filter(key -> BCrypt.checkpw(request.getApiKey(), key.getApiKeyHash()))
-                .findFirst()
-                .map(key -> {
-                    log.info("API key validation successful for customer: {}", key.getCustomer().getId());
-                    return ValidateKeyResponse.builder()
-                            .valid(true)
-                            .customerId(key.getCustomer().getId().toString())
-                            .permissions(Arrays.asList(key.getPermissions().split(",")))
-                            .rateLimit(key.getRateLimit())
-                            .expiryDate(key.getExpiryDate())
-                            .build();
-                })
-                .orElse(ValidateKeyResponse.builder()
-                        .valid(false)
-                        .reason("Invalid, expired, or revoked API key")
-                        .build());
+            return apiKeyRepository.findAll().stream()
+                    .filter(key -> "active".equals(key.getStatus()))
+                    .filter(key -> key.getExpiryDate() == null || key.getExpiryDate().isAfter(LocalDateTime.now()))
+                    .filter(key -> BCrypt.checkpw(request.getApiKey(), key.getApiKeyHash()))
+                    .findFirst()
+                    .map(key -> {
+                        log.info("VALIDATION_SUCCESS - API key validation successful for customer: {}", key.getCustomer().getUuid());
+                        return ValidateKeyResponse.builder()
+                                .valid(true)
+                                .customerId(key.getCustomer().getId().toString())
+                                .apiKeyId(key.getId().toString())
+                                .permissions(key.getPermissions() != null && !key.getPermissions().trim().isEmpty()
+                                    ? Arrays.asList(key.getPermissions().split(","))
+                                    : Arrays.asList())
+                                .rateLimit(key.getRateLimit())
+                                .expiryDate(key.getExpiryDate())
+                                .build();
+                    })
+                    .orElseGet(() -> {
+                        log.warn("VALIDATION_FAILED - API key validation failed");
+                        return ValidateKeyResponse.builder()
+                                .valid(false)
+                                .reason("Invalid, expired, or revoked API key")
+                                .build();
+                    });
+
+        } catch (Exception e) {
+            log.error("VALIDATION_ERROR - Error validating API key: {}", e.getMessage(), e);
+            return ValidateKeyResponse.builder()
+                    .valid(false)
+                    .reason("Unable to validate API key. Please try again.")
+                    .build();
+        }
     }
 
     @Override
     public ApiKey revokeApiKey(UUID keyId) {
-        log.info("Revoking API key with ID: {}", keyId);
+        log.info("KEY_REVOKE_START - Revoking API key with ID: {}", keyId);
 
-        ApiKeyEntity apiKeyEntity = apiKeyRepository.findByUuid(keyId).orElseThrow(() -> new RuntimeException("API key not found with ID: " + keyId));
+        try {
+            ApiKeyEntity apiKeyEntity = apiKeyRepository.findByUuid(keyId).orElseThrow(() -> new AKMSException.ApiKeyNotFoundException(keyId.toString()));
 
-        apiKeyEntity.setStatus("revoked");
-        apiKeyEntity.setUpdatedAt(LocalDateTime.now());
+            apiKeyEntity.setStatus("revoked");
+            apiKeyEntity.setUpdatedAt(LocalDateTime.now());
 
-        ApiKeyEntity savedEntity = apiKeyRepository.save(apiKeyEntity);
-        log.info("API key revoked successfully with ID: {}", keyId);
+            ApiKeyEntity savedEntity = apiKeyRepository.save(apiKeyEntity);
+            log.info("KEY_REVOKE_SUCCESS - API key revoked successfully with ID: {}", keyId);
 
-        return mapToDto(savedEntity);
+            // Invalidate cache to ensure revoked key is not served from cache
+            cacheInvalidationService.invalidateApiKeyCache(savedEntity.getId());
+
+            return mapToDto(savedEntity);
+
+        } catch (Exception e) {
+            log.error("KEY_REVOKE_ERROR - Failed to revoke API key: keyId={}, error={}", keyId, e.getMessage(), e);
+            if (e instanceof AKMSException) {
+                throw e;
+            }
+            throw new AKMSException.DatabaseOperationException("revoke API key", e);
+        }
     }
 
     @Override
     public ApiKey activateApiKey(UUID keyId) {
-        log.info("Activating API key with ID: {}", keyId);
+        log.info("KEY_ACTIVATE_START - Activating API key with ID: {}", keyId);
 
-        ApiKeyEntity apiKeyEntity = apiKeyRepository.findByUuid(keyId).orElseThrow(() -> new RuntimeException("API key not found with ID: " + keyId));
+        try {
+            ApiKeyEntity apiKeyEntity = apiKeyRepository.findByUuid(keyId)
+                    .orElseThrow(() -> new AKMSException.ApiKeyNotFoundException(keyId.toString()));
 
-        // Check if key is not expired
-        if (apiKeyEntity.getExpiryDate() != null && apiKeyEntity.getExpiryDate().isBefore(LocalDateTime.now())) {
-            throw new RuntimeException("Cannot activate expired API key");
+            // Check if key is not expired
+            if (apiKeyEntity.getExpiryDate() != null && apiKeyEntity.getExpiryDate().isBefore(LocalDateTime.now())) {
+                throw new AKMSException.ApiKeyExpiredException(keyId.toString());
+            }
+
+            apiKeyEntity.setStatus("active");
+            apiKeyEntity.setUpdatedAt(LocalDateTime.now());
+
+            ApiKeyEntity savedEntity = apiKeyRepository.save(apiKeyEntity);
+            log.info("KEY_ACTIVATE_SUCCESS - API key activated successfully with ID: {}", keyId);
+
+            // Invalidate cache to ensure activated key gets fresh validation
+            cacheInvalidationService.invalidateApiKeyCache(savedEntity.getId());
+
+            return mapToDto(savedEntity);
+
+        } catch (Exception e) {
+            log.error("KEY_ACTIVATE_ERROR - Failed to activate API key: keyId={}, error={}", keyId, e.getMessage(), e);
+            if (e instanceof AKMSException) {
+                throw e;
+            }
+            throw new AKMSException.DatabaseOperationException("activate API key", e);
         }
-
-        apiKeyEntity.setStatus("active");
-        apiKeyEntity.setUpdatedAt(LocalDateTime.now());
-
-        ApiKeyEntity savedEntity = apiKeyRepository.save(apiKeyEntity);
-        log.info("API key activated successfully with ID: {}", keyId);
-
-        return mapToDto(savedEntity);
     }
 
     @Override
@@ -159,10 +222,10 @@ public class ApiKeyServiceImpl implements ApiKeyService {
         log.info("Fetching API keys for customer: {}", customerId);
 
         CustomerEntity customer = customerRepository.findByUuid(customerId)
-                .orElseThrow(() -> new RuntimeException("Customer not found with UUID: " + customerId));
+                .orElseThrow(() -> new AKMSException.CustomerNotFoundException(customerId.toString()));
 
         return apiKeyRepository.findAll().stream()
-                .filter(key -> key.getCustomer().getId().equals(customerId))
+                .filter(key -> key.getCustomer().getUuid().equals(customerId))
                 .map(this::mapToDto)
                 .collect(Collectors.toList());
     }
@@ -173,7 +236,7 @@ public class ApiKeyServiceImpl implements ApiKeyService {
         log.info("Fetching API keys for customer: {} with pagination", customerId);
 
         if (!customerRepository.existsByUuid(customerId)) {
-            throw new RuntimeException("Customer not found with ID: " + customerId);
+            throw new AKMSException.CustomerNotFoundException(customerId.toString());
         }
 
         return apiKeyRepository.findAll(pageable)
@@ -194,7 +257,8 @@ public class ApiKeyServiceImpl implements ApiKeyService {
     public ApiKey updateApiKey(UUID id, ApiKey apiKey) {
         log.info("Updating API key with ID: {}", id);
 
-        ApiKeyEntity existingEntity = apiKeyRepository.findByUuid(id).orElseThrow(() -> new RuntimeException("API key not found with ID: " + id));
+        ApiKeyEntity existingEntity = apiKeyRepository.findByUuid(id)
+                .orElseThrow(() -> new AKMSException.ApiKeyNotFoundException(id.toString()));
 
         // Update allowed fields (not the hash or customer)
         existingEntity.setName(apiKey.getName());
@@ -213,12 +277,24 @@ public class ApiKeyServiceImpl implements ApiKeyService {
     public void deleteApiKey(UUID id) {
         log.info("Deleting API key with ID: {}", id);
 
-        if (!apiKeyRepository.existsByUuid(id)) {
-            throw new RuntimeException("API key not found with ID: " + id);
-        }
+        try {
+            // First get the entity to get the database ID for cache invalidation
+            ApiKeyEntity apiKeyEntity = apiKeyRepository.findByUuid(id).orElseThrow(() -> new AKMSException.ApiKeyNotFoundException(id.toString()));
 
-        apiKeyRepository.deleteByUuid(id);
-        log.info("API key deleted successfully with ID: {}", id);
+            Long databaseId = apiKeyEntity.getId();
+
+            apiKeyRepository.deleteByUuid(id);
+            log.info("API key deleted successfully with ID: {}", id);
+
+            // Invalidate cache to ensure deleted key is not served from cache
+            cacheInvalidationService.invalidateApiKeyCache(databaseId);
+
+        } catch (AKMSException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("DELETE_ERROR - Failed to delete API key: keyId={}, error={}", id, e.getMessage(), e);
+            throw new AKMSException.DatabaseOperationException("delete API key", e);
+        }
     }
 
     @Override
@@ -269,9 +345,11 @@ public class ApiKeyServiceImpl implements ApiKeyService {
     private ApiKey mapToDto(ApiKeyEntity entity) {
         return ApiKey.builder()
                 .uuid(entity.getUuid())
-                .customerId(entity.getCustomer().getId().toString())
+                .customerId(entity.getCustomer().getUuid().toString())
                 .name(entity.getName())
-                .permissions(Arrays.asList(entity.getPermissions().split(",")))
+                .permissions(entity.getPermissions() != null && !entity.getPermissions().trim().isEmpty()
+                        ? Arrays.asList(entity.getPermissions().split(","))
+                        : Arrays.asList())
                 .rateLimit(entity.getRateLimit())
                 .expiryDate(entity.getExpiryDate())
                 .maskedKey(maskApiKey(entity.getId().toString())) // Create masked version
@@ -280,6 +358,9 @@ public class ApiKeyServiceImpl implements ApiKeyService {
 
     private String maskApiKey(String keyId) {
         // Create a masked representation for display purposes
+        if (keyId == null || keyId.length() <= 4) {
+            return "ak_****" + keyId;
+        }
         return "ak_****" + keyId.substring(keyId.length() - 4);
     }
 }
