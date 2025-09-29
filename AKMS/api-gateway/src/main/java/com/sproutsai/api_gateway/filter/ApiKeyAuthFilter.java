@@ -2,6 +2,7 @@ package com.sproutsai.api_gateway.filter;
 
 import com.sproutsai.api_gateway.service.ApiKeyService;
 import com.sproutsai.api_gateway.service.RateLimitService;
+import com.sproutsai.api_gateway.service.UsageTrackingService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -23,54 +24,76 @@ public class ApiKeyAuthFilter implements GlobalFilter, Ordered {
 
     private final ApiKeyService apiKeyService;
     private final RateLimitService rateLimitService;
-//    private final UsageTrackingService usageTrackingService;
+    private final UsageTrackingService usageTrackingService;
 
-    public ApiKeyAuthFilter(ApiKeyService apiKeyService, RateLimitService rateLimitService) {
+    public ApiKeyAuthFilter(ApiKeyService apiKeyService, RateLimitService rateLimitService, UsageTrackingService usageTrackingService) {
         this.apiKeyService = apiKeyService;
         this.rateLimitService = rateLimitService;
-//        this.usageTrackingService = usageTrackingService;
+        this.usageTrackingService = usageTrackingService;
     }
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
         String path = exchange.getRequest().getPath().value();
         String traceId = generateTraceId();
+        long startTime = System.currentTimeMillis();
 
         log.info("FLOW_START [{}] - Incoming request: method={}, path={}", traceId, exchange.getRequest().getMethod(), path);
 
         // Step 1: Log incoming request
-        logRequest(exchange, extractApiKey(exchange));
+        logRequest(exchange);
 
-        // Skip API key authentication for actuator endpoints
+        // Skip API key authentication for actuator endpoints but still log usage
         if (path.startsWith("/actuator/")) {
             log.info("FLOW_SKIP [{}] - Skipping API key authentication for actuator endpoint: {}", traceId, path);
-            return chain.filter(exchange);
+            return chain.filter(exchange)
+                    .doFinally(signalType -> {
+                        long responseTime = System.currentTimeMillis() - startTime;
+                        int statusCode = exchange.getResponse().getStatusCode() != null ? exchange.getResponse().getStatusCode().value() : 200;
+                        usageTrackingService.logUsageAsync(exchange, null, statusCode, responseTime, null);
+                    });
         }
 
-        // Skip API key authentication for non-API paths (if any)
+        // Skip API key authentication for non-API paths but still log usage
         if (!path.startsWith("/api/")) {
             log.info("FLOW_SKIP [{}] - Skipping API key authentication for non-API path: {}", traceId, path);
-            return chain.filter(exchange);
+            return chain.filter(exchange)
+                    .doFinally(signalType -> {
+                        long responseTime = System.currentTimeMillis() - startTime;
+                        int statusCode = exchange.getResponse().getStatusCode() != null ? exchange.getResponse().getStatusCode().value() : 200;
+                        usageTrackingService.logUsageAsync(exchange, null, statusCode, responseTime, null);
+                    });
         }
 
-        // Skip authentication for /api/keys/generate
+        // Skip authentication for /api/keys/generate but still log usage
         if (path.equals("/api/keys/generate")) {
             log.info("FLOW_SKIP [{}] - Skipping API key authentication for key generation endpoint", traceId);
-            return chain.filter(exchange);
+            return chain.filter(exchange)
+                    .doFinally(signalType -> {
+                        long responseTime = System.currentTimeMillis() - startTime;
+                        int statusCode = exchange.getResponse().getStatusCode() != null ? exchange.getResponse().getStatusCode().value() : 200;
+                        usageTrackingService.logUsageAsync(exchange, null, statusCode, responseTime, null);
+                    });
         }
 
-        // Skip authentication for internal cache management endpoints
+        // Skip authentication for internal cache management endpoints but still log usage
         if (path.startsWith("/internal/cache")) {
             log.info("FLOW_SKIP [{}] - Skipping API key authentication for internal cache endpoint: {}", traceId, path);
-            return chain.filter(exchange);
+            return chain.filter(exchange)
+                    .doFinally(signalType -> {
+                        long responseTime = System.currentTimeMillis() - startTime;
+                        int statusCode = exchange.getResponse().getStatusCode() != null ? exchange.getResponse().getStatusCode().value() : 200;
+                        usageTrackingService.logUsageAsync(exchange, null, statusCode, responseTime, null);
+                    });
         }
 
-        long startTime = System.currentTimeMillis();
         String apiKey = extractApiKey(exchange);
 
         if (apiKey == null || apiKey.isBlank()) {
             log.warn("AUTH_FAILED [{}] - Missing API key for request: {}", traceId, path);
             exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
+            long responseTime = System.currentTimeMillis() - startTime;
+            usageTrackingService.logUsageAsync(exchange, null, HttpStatus.UNAUTHORIZED.value(), responseTime, "Missing API key");
             return exchange.getResponse().setComplete();
         }
 
@@ -107,13 +130,9 @@ public class ApiKeyAuthFilter implements GlobalFilter, Ordered {
                             log.warn("RATE_LIMIT_EXCEEDED [{}] - Customer: {}, limited by: {}, remaining: {}", traceId, metadata.customerId(), rateLimitResult.limitedBy(), rateLimitResult.remaining());
                         exchange.getResponse().getHeaders().add("X-RateLimit-Reset", rateLimitResult.resetTime().toString());
 
-                        // Add rate limit headers
-//                        exchange.getResponse().getHeaders().add("X-RateLimit-Remaining", String.valueOf(rateLimitResult.remaining()));
-//                        exchange.getResponse().getHeaders().add("X-RateLimit-Reset", rateLimitResult.resetTime().toString());
-
-//                        exchange.getResponse().getHeaders().add("Retry-After", String.valueOf(rateLimitResult.resetTime().toEpochSecond())); // if resetTime is Instant
-
                         exchange.getResponse().setStatusCode(HttpStatus.TOO_MANY_REQUESTS);
+                        long responseTime = System.currentTimeMillis() - startTime;
+                        usageTrackingService.logUsageAsync(exchange, metadata, HttpStatus.TOO_MANY_REQUESTS.value(), responseTime, "Rate limit exceeded");
                         return exchange.getResponse().setComplete();
                     }
 
@@ -136,15 +155,22 @@ public class ApiKeyAuthFilter implements GlobalFilter, Ordered {
                                 int statusCode = enrichedExchange.getResponse().getStatusCode() != null ? enrichedExchange.getResponse().getStatusCode().value() : 200;
 
                                 log.info("FLOW_END [{}] - Request completed: status={}, responseTime={}ms, customer={}", traceId, statusCode, responseTime, metadata.customerId());
+
+                                // Log successful request usage
+                                usageTrackingService.logUsageAsync(enrichedExchange, metadata, statusCode, responseTime, null);
                             });
                 })
                 .onErrorResume(throwable -> {
                     if (throwable.getMessage() != null && throwable.getMessage().contains("Invalid API key")) {
                         // The error was already set in the response status above
+                        long responseTime = System.currentTimeMillis() - startTime;
+                        usageTrackingService.logUsageAsync(exchange, null, HttpStatus.UNAUTHORIZED.value(), responseTime, "Invalid API key");
                         return exchange.getResponse().setComplete();
                     }
                     log.error("Unexpected error in API key validation", throwable);
                     exchange.getResponse().setStatusCode(HttpStatus.INTERNAL_SERVER_ERROR);
+                    long responseTime = System.currentTimeMillis() - startTime;
+                    usageTrackingService.logUsageAsync(exchange, null, HttpStatus.INTERNAL_SERVER_ERROR.value(), responseTime, "Internal server error: " + throwable.getMessage());
                     return exchange.getResponse().setComplete();
                 });
     }
@@ -165,12 +191,8 @@ public class ApiKeyAuthFilter implements GlobalFilter, Ordered {
         return null;
     }
 
-    private void logRequest(ServerWebExchange exchange, String apiKey) {
-        log.info("Incoming request path={}, method={}, apiKeyHash={}",
-                exchange.getRequest().getPath(),
-                exchange.getRequest().getMethod(),
-                apiKey != null ? apiKey.hashCode() : "N/A"
-        );
+    private void logRequest(ServerWebExchange exchange) {
+        log.info("Incoming request path={}, method={}, apiKeyHash={}",exchange.getRequest().getPath(), exchange.getRequest().getMethod());
     }
 
 //    private void logUsage(ServerWebExchange exchange, ApiKeyService.ApiKeyMetadata metadata,

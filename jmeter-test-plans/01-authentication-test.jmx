@@ -51,7 +51,7 @@
         </elementProp>
       </ThreadGroup>
       <hashTree>
-        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="1. Generate API Key">
+        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="1. Generate API Key" enabled="true">
           <stringProp name="HTTPSampler.domain">${akms_host}</stringProp>
           <stringProp name="HTTPSampler.port">${akms_port}</stringProp>
           <stringProp name="HTTPSampler.protocol">http</stringProp>
@@ -186,7 +186,7 @@
           <hashTree/>
         </hashTree>
       </hashTree>
-      <ResultCollector guiclass="ViewResultsFullVisualizer" testclass="ResultCollector" testname="View Results Tree">
+      <ResultCollector guiclass="ViewResultsFullVisualizer" testclass="ResultCollector" testname="View Results Tree" enabled="true">
         <boolProp name="ResultCollector.error_logging">false</boolProp>
         <objProp>
           <name>saveConfig</name>

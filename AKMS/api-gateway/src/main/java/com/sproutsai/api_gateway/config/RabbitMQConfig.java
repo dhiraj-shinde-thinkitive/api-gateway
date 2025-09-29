@@ -12,7 +12,7 @@ import org.springframework.context.annotation.Configuration;
 /**
  * RabbitMQ configuration for message queuing
  */
-//@Configuration
+@Configuration
 public class RabbitMQConfig {
 
     @Value("${app.messaging.usage-log-exchange}")

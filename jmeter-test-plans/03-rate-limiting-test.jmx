@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<jmeterTestPlan version="1.2" properties="5.0" jmeter="5.6.2">
+<jmeterTestPlan version="1.2" properties="5.0" jmeter="5.6.3">
   <hashTree>
     <TestPlan guiclass="TestPlanGui" testclass="TestPlan" testname="Rate Limiting Test Plan">
       <elementProp name="arguments" elementType="Arguments" guiclass="ArgumentsPanel" testclass="Arguments">
@@ -10,61 +10,72 @@
       <boolProp name="TestPlan.serialize_threadgroups">false</boolProp>
     </TestPlan>
     <hashTree>
-      <!-- User Defined Variables -->
       <Arguments guiclass="ArgumentsPanel" testclass="Arguments" testname="User Defined Variables">
         <collectionProp name="Arguments.arguments">
           <elementProp name="gateway_host" elementType="Argument">
             <stringProp name="Argument.name">gateway_host</stringProp>
             <stringProp name="Argument.value">localhost</stringProp>
+            <stringProp name="Argument.metadata">=</stringProp>
           </elementProp>
           <elementProp name="gateway_port" elementType="Argument">
             <stringProp name="Argument.name">gateway_port</stringProp>
             <stringProp name="Argument.value">8081</stringProp>
+            <stringProp name="Argument.metadata">=</stringProp>
           </elementProp>
           <elementProp name="customer_id" elementType="Argument">
             <stringProp name="Argument.name">customer_id</stringProp>
-            <stringProp name="Argument.value">123e4567-e89b-12d3-a456-426614174000</stringProp>
+            <stringProp name="Argument.value">6dda777a-30ad-4a1b-87a0-37386d8782aa</stringProp>
+            <stringProp name="Argument.metadata">=</stringProp>
           </elementProp>
-          <elementProp name="low_rate_limit" elementType="Argument">
-            <stringProp name="Argument.name">low_rate_limit</stringProp>
-            <stringProp name="Argument.value">5</stringProp>
+          <elementProp name="rate_limit" elementType="Argument">
+            <stringProp name="Argument.name">rate_limit</stringProp>
+            <stringProp name="Argument.value">4</stringProp>
+            <stringProp name="Argument.metadata">=</stringProp>
           </elementProp>
         </collectionProp>
       </Arguments>
       <hashTree/>
-
-      <!-- Setup Thread Group -->
-      <ThreadGroup guiclass="ThreadGroupGui" testclass="ThreadGroup" testname="Setup - Generate Rate Limited API Key">
+      <ThreadGroup guiclass="ThreadGroupGui" testclass="ThreadGroup" testname="Rate Limiting Test Cases">
+        <intProp name="ThreadGroup.num_threads">1</intProp>
+        <intProp name="ThreadGroup.ramp_time">1</intProp>
+        <boolProp name="ThreadGroup.same_user_on_next_iteration">true</boolProp>
         <stringProp name="ThreadGroup.on_sample_error">continue</stringProp>
-        <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControllerGui" testclass="LoopController">
-          <boolProp name="LoopController.continue_forever">false</boolProp>
+        <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController">
           <stringProp name="LoopController.loops">1</stringProp>
+          <boolProp name="LoopController.continue_forever">false</boolProp>
         </elementProp>
-        <stringProp name="ThreadGroup.num_threads">1</stringProp>
-        <stringProp name="ThreadGroup.ramp_time">1</stringProp>
       </ThreadGroup>
       <hashTree>
-        <!-- Generate API Key with Low Rate Limit -->
-        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="Generate Rate Limited API Key">
-          <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments">
-            <collectionProp name="Arguments.arguments"/>
-          </elementProp>
+        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="1. Generate Rate Limited API Key">
           <stringProp name="HTTPSampler.domain">${gateway_host}</stringProp>
           <stringProp name="HTTPSampler.port">${gateway_port}</stringProp>
           <stringProp name="HTTPSampler.protocol">http</stringProp>
           <stringProp name="HTTPSampler.path">/api/keys/generate</stringProp>
           <stringProp name="HTTPSampler.method">POST</stringProp>
           <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
-          <stringProp name="HTTPSampler.postBodyRaw">{
-  "customerId": "${customer_id}",
-  "customerName": "Rate Limit Test Customer",
-  "rateLimit": ${low_rate_limit},
-  "expiresInDays": 1,
-  "description": "API key for rate limiting tests"
+          <boolProp name="HTTPSampler.postBodyRaw">true</boolProp>
+          <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+            <collectionProp name="Arguments.arguments">
+              <elementProp name="" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">{&#xd;
+    &quot;customerId&quot;: &quot;${customer_id}&quot;,&#xd;
+    &quot;name&quot;: &quot;Rate Limit Test Key&quot;,&#xd;
+    &quot;permissions&quot;: [&#xd;
+        &quot;READ&quot;,&#xd;
+        &quot;WRITE&quot;,&#xd;
+        &quot;EXECUTE&quot;&#xd;
+    ],&#xd;
+    &quot;rateLimit&quot;: ${rate_limit},&#xd;
+    &quot;expiryDate&quot;: &quot;2025-09-29T23:59:59&quot;&#xd;
 }</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+              </elementProp>
+            </collectionProp>
+          </elementProp>
         </HTTPSamplerProxy>
         <hashTree>
-          <HeaderManager guiclass="HeaderPanel" testclass="HeaderManager" testname="HTTP Header Manager">
+          <HeaderManager guiclass="HeaderPanel" testclass="HeaderManager" testname="HTTP Header Manager" enabled="true">
             <collectionProp name="HeaderManager.headers">
               <elementProp name="" elementType="Header">
                 <stringProp name="Header.name">Content-Type</stringProp>
@@ -73,125 +84,38 @@
             </collectionProp>
           </HeaderManager>
           <hashTree/>
-          <JSONPostProcessor guiclass="JSONPostProcessorGui" testclass="JSONPostProcessor" testname="Extract Rate Limited API Key">
+          <JSONPostProcessor guiclass="JSONPostProcessorGui" testclass="JSONPostProcessor" testname="Extract API Key" enabled="true">
             <stringProp name="JSONPostProcessor.referenceNames">rate_limited_api_key</stringProp>
             <stringProp name="JSONPostProcessor.jsonPathExprs">$.apiKey</stringProp>
             <stringProp name="JSONPostProcessor.match_numbers">1</stringProp>
           </JSONPostProcessor>
           <hashTree/>
-        </hashTree>
-      </hashTree>
-
-      <!-- Rate Limiting Test Thread Group -->
-      <ThreadGroup guiclass="ThreadGroupGui" testclass="ThreadGroup" testname="Rate Limiting Test - Burst Requests">
-        <stringProp name="ThreadGroup.on_sample_error">continue</stringProp>
-        <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControllerGui" testclass="LoopController">
-          <boolProp name="LoopController.continue_forever">false</boolProp>
-          <stringProp name="LoopController.loops">10</stringProp>
-        </elementProp>
-        <stringProp name="ThreadGroup.num_threads">1</stringProp>
-        <stringProp name="ThreadGroup.ramp_time">1</stringProp>
-        <stringProp name="ThreadGroup.delay">2000</stringProp>
-      </ThreadGroup>
-      <hashTree>
-        <!-- Rapid Requests to Trigger Rate Limiting -->
-        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="Rapid Request - Should Hit Rate Limit">
-          <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments">
-            <collectionProp name="Arguments.arguments"/>
-          </elementProp>
-          <stringProp name="HTTPSampler.domain">${gateway_host}</stringProp>
-          <stringProp name="HTTPSampler.port">${gateway_port}</stringProp>
-          <stringProp name="HTTPSampler.protocol">http</stringProp>
-          <stringProp name="HTTPSampler.path">/api/keys/test</stringProp>
-          <stringProp name="HTTPSampler.method">GET</stringProp>
-          <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
-        </HTTPSamplerProxy>
-        <hashTree>
-          <HeaderManager guiclass="HeaderPanel" testclass="HeaderManager" testname="HTTP Header Manager">
-            <collectionProp name="HeaderManager.headers">
-              <elementProp name="" elementType="Header">
-                <stringProp name="Header.name">Authorization</stringProp>
-                <stringProp name="Header.value">Api-Key ${rate_limited_api_key}</stringProp>
-              </elementProp>
-            </collectionProp>
-          </HeaderManager>
-          <hashTree/>
-          <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="Response Assertion - 200 or 429">
+          <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="Response Assertion" enabled="true">
             <collectionProp name="Asserion.test_strings">
               <stringProp name="49586">200</stringProp>
-              <stringProp name="51508">429</stringProp>
+              <stringProp name="49587">201</stringProp>
             </collectionProp>
             <stringProp name="Assertion.test_field">Assertion.response_code</stringProp>
             <boolProp name="Assertion.assume_success">false</boolProp>
             <intProp name="Assertion.test_type">40</intProp>
+            <stringProp name="Assertion.custom_message"></stringProp>
           </ResponseAssertion>
           <hashTree/>
-          <RegexExtractor guiclass="RegexExtractorGui" testclass="RegexExtractor" testname="Extract Rate Limit Headers">
-            <stringProp name="RegexExtractor.useHeaders">true</stringProp>
-            <stringProp name="RegexExtractor.refname">rate_limit_remaining</stringProp>
-            <stringProp name="RegexExtractor.regex">X-RateLimit-Remaining: (\d+)</stringProp>
-            <stringProp name="RegexExtractor.template">$1$</stringProp>
-            <stringProp name="RegexExtractor.default">NOT_FOUND</stringProp>
-            <stringProp name="RegexExtractor.match_number">1</stringProp>
-          </RegexExtractor>
-          <hashTree/>
         </hashTree>
-
-        <!-- Log Rate Limit Information -->
-        <BeanShellSampler guiclass="BeanShellSamplerGui" testclass="BeanShellSampler" testname="Log Rate Limit Info">
-          <stringProp name="BeanShellSampler.query">
-int responseCode = Integer.parseInt(prev.getResponseCode());
-String rateLimitRemaining = vars.get("rate_limit_remaining");
-
-if (responseCode == 200) {
-    log.info("Request " + (ctx.getThreadGroup().getNumberOfThreads() * __loopCount + __threadNum) + " - SUCCESS: Rate limit remaining: " + rateLimitRemaining);
-} else if (responseCode == 429) {
-    log.info("Request " + (ctx.getThreadGroup().getNumberOfThreads() * __loopCount + __threadNum) + " - RATE LIMITED: " + prev.getResponseMessage());
-}
-
-SampleResult.setSuccessful(true);
-SampleResult.setResponseMessage("Logged rate limit info");
-          </stringProp>
-          <stringProp name="BeanShellSampler.filename"></stringProp>
-          <stringProp name="BeanShellSampler.parameters"></stringProp>
-          <boolProp name="BeanShellSampler.resetInterpreter">false</boolProp>
-        </BeanShellSampler>
-        <hashTree/>
-
-        <!-- Small delay between requests -->
-        <UniformRandomTimer guiclass="UniformRandomTimerGui" testclass="UniformRandomTimer" testname="Small Random Delay">
-          <stringProp name="ConstantTimer.delay">100</stringProp>
-          <stringProp name="RandomTimer.range">100</stringProp>
-        </UniformRandomTimer>
-        <hashTree/>
-      </hashTree>
-
-      <!-- Concurrent Users Test Thread Group -->
-      <ThreadGroup guiclass="ThreadGroupGui" testclass="ThreadGroup" testname="Concurrent Users Rate Limit Test">
-        <stringProp name="ThreadGroup.on_sample_error">continue</stringProp>
-        <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControllerGui" testclass="LoopController">
-          <boolProp name="LoopController.continue_forever">false</boolProp>
-          <stringProp name="LoopController.loops">3</stringProp>
-        </elementProp>
-        <stringProp name="ThreadGroup.num_threads">5</stringProp>
-        <stringProp name="ThreadGroup.ramp_time">2</stringProp>
-        <stringProp name="ThreadGroup.delay">15000</stringProp>
-      </ThreadGroup>
-      <hashTree>
-        <!-- Concurrent Request -->
-        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="Concurrent Request">
-          <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments">
-            <collectionProp name="Arguments.arguments"/>
-          </elementProp>
+        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="2. First Request - Should Pass" enabled="true">
           <stringProp name="HTTPSampler.domain">${gateway_host}</stringProp>
           <stringProp name="HTTPSampler.port">${gateway_port}</stringProp>
           <stringProp name="HTTPSampler.protocol">http</stringProp>
           <stringProp name="HTTPSampler.path">/api/keys/test</stringProp>
           <stringProp name="HTTPSampler.method">GET</stringProp>
           <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+          <boolProp name="HTTPSampler.postBodyRaw">false</boolProp>
+          <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments" testname="User Defined Variables">
+            <collectionProp name="Arguments.arguments"/>
+          </elementProp>
         </HTTPSamplerProxy>
         <hashTree>
-          <HeaderManager guiclass="HeaderPanel" testclass="HeaderManager" testname="HTTP Header Manager">
+          <HeaderManager guiclass="HeaderPanel" testclass="HeaderManager" testname="HTTP Header Manager" enabled="true">
             <collectionProp name="HeaderManager.headers">
               <elementProp name="" elementType="Header">
                 <stringProp name="Header.name">Authorization</stringProp>
@@ -200,79 +124,150 @@ SampleResult.setResponseMessage("Logged rate limit info");
             </collectionProp>
           </HeaderManager>
           <hashTree/>
-          <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="Response Assertion - 200 or 429">
-            <collectionProp name="Asserion.test_strings">
-              <stringProp name="49586">200</stringProp>
-              <stringProp name="51508">429</stringProp>
-            </collectionProp>
-            <stringProp name="Assertion.test_field">Assertion.response_code</stringProp>
-            <boolProp name="Assertion.assume_success">false</boolProp>
-            <intProp name="Assertion.test_type">40</intProp>
-          </ResponseAssertion>
-          <hashTree/>
-        </hashTree>
-
-        <!-- Random delay between concurrent requests -->
-        <UniformRandomTimer guiclass="UniformRandomTimerGui" testclass="UniformRandomTimer" testname="Concurrent Request Delay">
-          <stringProp name="ConstantTimer.delay">500</stringProp>
-          <stringProp name="RandomTimer.range">1000</stringProp>
-        </UniformRandomTimer>
-        <hashTree/>
-      </hashTree>
-
-      <!-- Wait and Retry Thread Group -->
-      <ThreadGroup guiclass="ThreadGroupGui" testclass="ThreadGroup" testname="Wait and Retry After Rate Limit">
-        <stringProp name="ThreadGroup.on_sample_error">continue</stringProp>
-        <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControllerGui" testclass="LoopController">
-          <boolProp name="LoopController.continue_forever">false</boolProp>
-          <stringProp name="LoopController.loops">3</stringProp>
-        </elementProp>
-        <stringProp name="ThreadGroup.num_threads">1</stringProp>
-        <stringProp name="ThreadGroup.ramp_time">1</stringProp>
-        <stringProp name="ThreadGroup.delay">65000</stringProp>
-      </ThreadGroup>
-      <hashTree>
-        <!-- Request After Rate Limit Window -->
-        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="Request After Rate Limit Reset">
-          <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments">
-            <collectionProp name="Arguments.arguments"/>
-          </elementProp>
-          <stringProp name="HTTPSampler.domain">${gateway_host}</stringProp>
-          <stringProp name="HTTPSampler.port">${gateway_port}</stringProp>
-          <stringProp name="HTTPSampler.protocol">http</stringProp>
-          <stringProp name="HTTPSampler.path">/api/keys/test</stringProp>
-          <stringProp name="HTTPSampler.method">GET</stringProp>
-          <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
-        </HTTPSamplerProxy>
-        <hashTree>
-          <HeaderManager guiclass="HeaderPanel" testclass="HeaderManager" testname="HTTP Header Manager">
-            <collectionProp name="HeaderManager.headers">
-              <elementProp name="" elementType="Header">
-                <stringProp name="Header.name">Authorization</stringProp>
-                <stringProp name="Header.value">Api-Key ${rate_limited_api_key}</stringProp>
-              </elementProp>
-            </collectionProp>
-          </HeaderManager>
-          <hashTree/>
-          <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="Response Assertion - Should be 200">
+          <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="Response Assertion" enabled="true">
             <collectionProp name="Asserion.test_strings">
               <stringProp name="49586">200</stringProp>
             </collectionProp>
             <stringProp name="Assertion.test_field">Assertion.response_code</stringProp>
             <boolProp name="Assertion.assume_success">false</boolProp>
             <intProp name="Assertion.test_type">1</intProp>
+            <stringProp name="Assertion.custom_message"></stringProp>
           </ResponseAssertion>
           <hashTree/>
         </hashTree>
-
-        <!-- Delay between retry requests -->
-        <ConstantTimer guiclass="ConstantTimerGui" testclass="ConstantTimer" testname="Constant Timer">
-          <stringProp name="ConstantTimer.delay">2000</stringProp>
-        </ConstantTimer>
-        <hashTree/>
+        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="3. Second Request - Should Pass" enabled="true">
+          <stringProp name="HTTPSampler.domain">${gateway_host}</stringProp>
+          <stringProp name="HTTPSampler.port">${gateway_port}</stringProp>
+          <stringProp name="HTTPSampler.protocol">http</stringProp>
+          <stringProp name="HTTPSampler.path">/api/keys/test</stringProp>
+          <stringProp name="HTTPSampler.method">GET</stringProp>
+          <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+          <boolProp name="HTTPSampler.postBodyRaw">false</boolProp>
+          <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments" testname="User Defined Variables">
+            <collectionProp name="Arguments.arguments"/>
+          </elementProp>
+        </HTTPSamplerProxy>
+        <hashTree>
+          <HeaderManager guiclass="HeaderPanel" testclass="HeaderManager" testname="HTTP Header Manager" enabled="true">
+            <collectionProp name="HeaderManager.headers">
+              <elementProp name="" elementType="Header">
+                <stringProp name="Header.name">Authorization</stringProp>
+                <stringProp name="Header.value">Api-Key ${rate_limited_api_key}</stringProp>
+              </elementProp>
+            </collectionProp>
+          </HeaderManager>
+          <hashTree/>
+          <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="Response Assertion" enabled="true">
+            <collectionProp name="Asserion.test_strings">
+              <stringProp name="49586">200</stringProp>
+            </collectionProp>
+            <stringProp name="Assertion.test_field">Assertion.response_code</stringProp>
+            <boolProp name="Assertion.assume_success">false</boolProp>
+            <intProp name="Assertion.test_type">1</intProp>
+            <stringProp name="Assertion.custom_message"></stringProp>
+          </ResponseAssertion>
+          <hashTree/>
+        </hashTree>
+        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="4. Third Request - Should Pass" enabled="true">
+          <stringProp name="HTTPSampler.domain">${gateway_host}</stringProp>
+          <stringProp name="HTTPSampler.port">${gateway_port}</stringProp>
+          <stringProp name="HTTPSampler.protocol">http</stringProp>
+          <stringProp name="HTTPSampler.path">/api/keys/test</stringProp>
+          <stringProp name="HTTPSampler.method">GET</stringProp>
+          <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+          <boolProp name="HTTPSampler.postBodyRaw">false</boolProp>
+          <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments" testname="User Defined Variables">
+            <collectionProp name="Arguments.arguments"/>
+          </elementProp>
+        </HTTPSamplerProxy>
+        <hashTree>
+          <HeaderManager guiclass="HeaderPanel" testclass="HeaderManager" testname="HTTP Header Manager" enabled="true">
+            <collectionProp name="HeaderManager.headers">
+              <elementProp name="" elementType="Header">
+                <stringProp name="Header.name">Authorization</stringProp>
+                <stringProp name="Header.value">Api-Key ${rate_limited_api_key}</stringProp>
+              </elementProp>
+            </collectionProp>
+          </HeaderManager>
+          <hashTree/>
+          <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="Response Assertion" enabled="true">
+            <collectionProp name="Asserion.test_strings">
+              <stringProp name="49586">200</stringProp>
+            </collectionProp>
+            <stringProp name="Assertion.test_field">Assertion.response_code</stringProp>
+            <boolProp name="Assertion.assume_success">false</boolProp>
+            <intProp name="Assertion.test_type">1</intProp>
+            <stringProp name="Assertion.custom_message"></stringProp>
+          </ResponseAssertion>
+          <hashTree/>
+        </hashTree>
+        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="5. Fourth Request - Should Pass" enabled="true">
+          <stringProp name="HTTPSampler.domain">${gateway_host}</stringProp>
+          <stringProp name="HTTPSampler.port">${gateway_port}</stringProp>
+          <stringProp name="HTTPSampler.protocol">http</stringProp>
+          <stringProp name="HTTPSampler.path">/api/keys/test</stringProp>
+          <stringProp name="HTTPSampler.method">GET</stringProp>
+          <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+          <boolProp name="HTTPSampler.postBodyRaw">false</boolProp>
+          <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments" testname="User Defined Variables">
+            <collectionProp name="Arguments.arguments"/>
+          </elementProp>
+        </HTTPSamplerProxy>
+        <hashTree>
+          <HeaderManager guiclass="HeaderPanel" testclass="HeaderManager" testname="HTTP Header Manager" enabled="true">
+            <collectionProp name="HeaderManager.headers">
+              <elementProp name="" elementType="Header">
+                <stringProp name="Header.name">Authorization</stringProp>
+                <stringProp name="Header.value">Api-Key ${rate_limited_api_key}</stringProp>
+              </elementProp>
+            </collectionProp>
+          </HeaderManager>
+          <hashTree/>
+          <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="Response Assertion" enabled="true">
+            <collectionProp name="Asserion.test_strings">
+              <stringProp name="49586">200</stringProp>
+            </collectionProp>
+            <stringProp name="Assertion.test_field">Assertion.response_code</stringProp>
+            <boolProp name="Assertion.assume_success">false</boolProp>
+            <intProp name="Assertion.test_type">1</intProp>
+            <stringProp name="Assertion.custom_message"></stringProp>
+          </ResponseAssertion>
+          <hashTree/>
+        </hashTree>
+        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="6. Fifth Request - Should Be Rate Limited (429)" enabled="true">
+          <stringProp name="HTTPSampler.domain">${gateway_host}</stringProp>
+          <stringProp name="HTTPSampler.port">${gateway_port}</stringProp>
+          <stringProp name="HTTPSampler.protocol">http</stringProp>
+          <stringProp name="HTTPSampler.path">/api/keys/test</stringProp>
+          <stringProp name="HTTPSampler.method">GET</stringProp>
+          <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+          <boolProp name="HTTPSampler.postBodyRaw">false</boolProp>
+          <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments" testname="User Defined Variables">
+            <collectionProp name="Arguments.arguments"/>
+          </elementProp>
+        </HTTPSamplerProxy>
+        <hashTree>
+          <HeaderManager guiclass="HeaderPanel" testclass="HeaderManager" testname="HTTP Header Manager" enabled="true">
+            <collectionProp name="HeaderManager.headers">
+              <elementProp name="" elementType="Header">
+                <stringProp name="Header.name">Authorization</stringProp>
+                <stringProp name="Header.value">Api-Key ${rate_limited_api_key}</stringProp>
+              </elementProp>
+            </collectionProp>
+          </HeaderManager>
+          <hashTree/>
+          <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="Response Assertion - Should Be 429" enabled="true">
+            <collectionProp name="Asserion.test_strings">
+              <stringProp name="51579">429</stringProp>
+            </collectionProp>
+            <stringProp name="Assertion.test_field">Assertion.response_code</stringProp>
+            <boolProp name="Assertion.assume_success">false</boolProp>
+            <intProp name="Assertion.test_type">1</intProp>
+            <stringProp name="Assertion.custom_message"></stringProp>
+          </ResponseAssertion>
+          <hashTree/>
+        </hashTree>
       </hashTree>
-
-      <!-- Results Tree -->
       <ResultCollector guiclass="ViewResultsFullVisualizer" testclass="ResultCollector" testname="View Results Tree">
         <boolProp name="ResultCollector.error_logging">false</boolProp>
         <objProp>
@@ -306,44 +301,7 @@ SampleResult.setResponseMessage("Logged rate limit info");
         <stringProp name="filename"></stringProp>
       </ResultCollector>
       <hashTree/>
-
-      <!-- Summary Report -->
-      <ResultCollector guiclass="SummaryReport" testclass="ResultCollector" testname="Summary Report">
-        <boolProp name="ResultCollector.error_logging">false</boolProp>
-        <objProp>
-          <name>saveConfig</name>
-          <value class="SampleSaveConfiguration">
-            <time>true</time>
-            <latency>true</latency>
-            <timestamp>true</timestamp>
-            <success>true</success>
-            <label>true</label>
-            <code>true</code>
-            <message>true</message>
-            <threadName>true</threadName>
-            <dataType>true</dataType>
-            <encoding>false</encoding>
-            <assertions>true</assertions>
-            <subresults>true</subresults>
-            <responseData>false</responseData>
-            <samplerData>false</samplerData>
-            <xml>false</xml>
-            <fieldNames>false</fieldNames>
-            <responseHeaders>false</responseHeaders>
-            <requestHeaders>false</requestHeaders>
-            <responseDataOnError>false</responseDataOnError>
-            <saveAssertionResultsFailureMessage>false</saveAssertionResultsFailureMessage>
-            <assertionsResultsToSave>0</assertionsResultsToSave>
-            <bytes>true</bytes>
-            <threadCounts>true</threadCounts>
-          </value>
-        </objProp>
-        <stringProp name="filename"></stringProp>
-      </ResultCollector>
-      <hashTree/>
-
-      <!-- Aggregate Graph -->
-      <ResultCollector guiclass="StatGraphVisualizer" testclass="ResultCollector" testname="Aggregate Graph">
+      <ResultCollector guiclass="SummaryReport" testclass="ResultCollector" testname="Summary Report" enabled="true">
         <boolProp name="ResultCollector.error_logging">false</boolProp>
         <objProp>
           <name>saveConfig</name>

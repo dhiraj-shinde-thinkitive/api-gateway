@@ -21,11 +21,11 @@ spring:
           min-idle: 0
   
   # RabbitMQ Configuration
-#  rabbitmq:
-#    host: localhost
-#    port: 5672
-#    username: guest
-#    password: guest
+  rabbitmq:
+    host: localhost
+    port: 5672
+    username: guest
+    password: guest
     
   # Gateway Configuration
   cloud:
